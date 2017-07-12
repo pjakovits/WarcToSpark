@@ -1,6 +1,9 @@
 package org.ut.scicloud.estnltk;
 
 import scala.Tuple2;
+
+import java.io.IOException;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -67,41 +70,49 @@ public static void main(String[] args) throws Exception {
   					String host = value.header.warcTargetUriStr;
   					
   					if (host != null){	
-						try {
-							URL url = new URL(host);
 						
-		  			        String protocol = url.getProtocol();
-		  			        String hostname = url.getHost();
-		  			        String urlpath = url.getPath();
-		  			        String param = url.getQuery();
-		  			        String date = httpHeader.getHeader("date").value;
-		  			        
-		  			        ZonedDateTime datetime =  ZonedDateTime.parse(date, DateTimeFormatter.ofPattern("EEE, d MMM yyyy HH:mm:ss z"));
-		  			        String newdate = datetime.format(DateTimeFormatter.ofPattern("yyyymmddhhmmss"));
-		  			       
-		  			        String keytext = protocol + "::" + hostname + "::" + urlpath + "::" + param + "::" + newdate;
-		  			        String encoding = "UTF-8";
-		  			        
+							String keytext = "";
+							String htmlraw = "";
+							String encoding = "UTF-8";
+							
+							try {
+								URL url = new URL(host);
+			  			        String protocol = url.getProtocol();
+			  			        String hostname = url.getHost();
+			  			        String urlpath = url.getPath();
+			  			        String param = url.getQuery();
+			  			        String date = httpHeader.getHeader("date").value;
+
+			  			        ZonedDateTime datetime =  ZonedDateTime.parse(date, DateTimeFormatter.ofPattern("EEE, d MMM yyyy HH:mm:ss z"));
+			  			        String newdate = datetime.format(DateTimeFormatter.ofPattern("yyyymmddhhmmss"));
+			  			       
+			  			        keytext = protocol + "::" + hostname + "::" + urlpath + "::" + param + "::" + newdate;
+			  			        
+							} catch (MalformedURLException e1) {
+								e1.printStackTrace();
+							}
+
 		  			        //Try to read record encoding
-		  			        try{
-			  			        String contentType = httpHeader.getProtocolContentType();
-				  			    if (contentType != null && contentType.contains("charset")) {
-				  			        String[] blocks = contentType.split(";");
-				  			        
-				  			        for(String block : blocks){
-				  			        	if(block.contains("charset")){
-				  			        		int idx = block.indexOf('=');
-				  			        		encoding = block.substring(idx+1, block.length());
-				  			        	}
-				  			        }
-				  			    }
-		  			        }
-		  			        catch(Exception e){	e.printStackTrace(); }
-		  			        
-		  			        String htmlraw = IOUtils.toString(httpHeader.getPayloadInputStream(), encoding); 
+		  			        String contentType = httpHeader.getProtocolContentType();
+			  			    if (contentType != null && contentType.contains("charset")) {
+			  			        String[] blocks = contentType.split(";");
+			  			        
+			  			        for(String block : blocks){
+			  			        	if(block.contains("charset")){
+			  			        		int idx = block.indexOf('=');
+			  			        		encoding = block.substring(idx+1, block.length());
+			  			        	}
+			  			        }
+			  			    }
+
+							try {
+								htmlraw = IOUtils.toString(httpHeader.getPayloadInputStream(), encoding);
+							} catch (IOException e) {
+								// TODO Auto-generated catch block
+								e.printStackTrace();
+							} 
+							
 		  		            return new Tuple2<>(keytext,htmlraw);
-	  		            
-						} catch (Exception e) {	e.printStackTrace(); }
   		            }
   				}
   			}
@@ -120,6 +131,7 @@ public static void main(String[] args) throws Exception {
 	});
      
     //Store results in (compressed) Sequencefile format
+    //Using foreachRDD to avoid writing out empty results when there is no input. 
     filtered.foreachRDD(new Function<JavaPairRDD<String, String>, Void>(){
 		private static final long serialVersionUID = -7959326603587611867L;
 
