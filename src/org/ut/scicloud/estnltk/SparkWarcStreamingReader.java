@@ -5,8 +5,11 @@ import scala.Tuple2;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
+
 import org.apache.commons.io.IOUtils;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
@@ -33,7 +36,8 @@ public class SparkWarcStreamingReader {
 			System.exit(1);
 		}
 
-
+		final String outputfolder = args[1];
+		
 		SparkConf conf = new SparkConf();
 
 		//Output compression. Comment out to disable compression. 
@@ -82,13 +86,19 @@ public class SparkWarcStreamingReader {
 								String urlpath = url.getPath();
 								String param = url.getQuery();
 								String date = httpHeader.getHeader("date").value;
-
-								ZonedDateTime datetime =  ZonedDateTime.parse(date, DateTimeFormatter.ofPattern("EEE, d MMM yyyy HH:mm:ss z"));
-								String newdate = datetime.format(DateTimeFormatter.ofPattern("yyyymmddhhmmss"));
+								
+								String pattern_in = "EEE, d MMM yyyy HH:mm:ss z";
+								String pattern_out = "yyyymmddhhmmss";
+								SimpleDateFormat format = new SimpleDateFormat(pattern_in,Locale.ENGLISH);
+								SimpleDateFormat formatout = new SimpleDateFormat(pattern_out,Locale.ENGLISH);
+								String newdate = formatout.format(format.parse(date));
+								
+								//ZonedDateTime datetime =  ZonedDateTime.parse(date, DateTimeFormatter.ofPattern());
+								//String newdate = datetime.format(DateTimeFormatter.ofPattern("yyyymmddhhmmss"));
 
 								keytext = protocol + "::" + hostname + "::" + urlpath + "::" + param + "::" + newdate;
 
-							} catch (MalformedURLException e1) {
+							} catch (MalformedURLException | ParseException e1) {
 								e1.printStackTrace();
 							}
 
@@ -146,7 +156,7 @@ public class SparkWarcStreamingReader {
 							return new Tuple2<>(new Text(t._1()),new Text(t._2()));
 						}});
 
-					rdd2.saveAsHadoopFile(args[1]+System.currentTimeMillis(), Text.class, Text.class, SequenceFileOutputFormat.class);
+					rdd2.saveAsHadoopFile(outputfolder+System.currentTimeMillis(), Text.class, Text.class, SequenceFileOutputFormat.class);
 				}
 				return null;
 			}
