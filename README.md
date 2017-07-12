@@ -26,6 +26,7 @@ NB! When working with HDFS, input files have to be moved not copied!
 
 Suggested behaviour is to first copy input files to a temporary folder and then move them to the input folder of the streaming job:
 
-hadoop dfs -copyFromLocal 37-1-20150218115550-00144-phase.warc inputToCopy
+hadoop dfs -copyFromLocal /mnt/warcs/warc1.warc inputToCopy
+
 hadoop dfs -mv inputToCopy/* input
 
