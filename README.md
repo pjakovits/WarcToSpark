@@ -10,6 +10,8 @@ Output is in the Hadoop SequenceFile format and contains the following values: \
 Text key - protocol + "::" + hostname + "::" + urlpath + "::" + parameters + "::" + date ("yyyymmddhhmmss") \
 Text val - raw html string 
 
+To make the output of the program compatible with text based Python Spark streaming, all linebreaks are rmoved from the HTML to make it a single line sting. \
+In addition, we are using "*_*_*_*_*_*_*_*_" as a separator between Key and Value fields, which should be configured accordingly in any program which automatically parses the output of this process. 
 
 Command to test streaming job locally:
 

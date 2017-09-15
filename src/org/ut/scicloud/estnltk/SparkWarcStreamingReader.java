@@ -39,8 +39,6 @@ public class SparkWarcStreamingReader {
 
 		final String outputfolder = args[1];
 		
-
-		
 		SparkConf conf = new SparkConf();
 		
 		//Configure how old files (based on timestamps) are considered as imput files. Default is 60 seconds, which may cause problems when copying big or many files.  
@@ -154,11 +152,11 @@ public class SparkWarcStreamingReader {
 							} catch (UnsupportedCharsetException e) {
 								e.printStackTrace();
 							}
-
-							return new Tuple2<>("","");
 						}
 					}
 				}
+				
+				//Return empty result, which should be filtered out later. 
 				return new Tuple2<>("","");
 			}
 		});

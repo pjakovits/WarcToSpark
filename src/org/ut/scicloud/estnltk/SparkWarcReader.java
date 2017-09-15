@@ -149,8 +149,6 @@ public class SparkWarcReader {
 							} catch (UnsupportedCharsetException e) {
 								e.printStackTrace();
 							}
-
-							return new Tuple2<>(new Text(""),new Text(""));
 						}
 					}
 				}
