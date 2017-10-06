@@ -33,7 +33,7 @@ public class SparkWarcStreamingReader {
 	public static void main(String[] args) throws Exception {
 
 		if (args.length < 2) {
-			System.err.println("Usage: SparkWarcStreamingReader <input folder> <output folder>");
+			System.err.println("Usage: SparkWarcStreamingReader <input folder> <output folder>  <optional_separator>");
 			System.exit(1);
 		}
 
@@ -61,105 +61,7 @@ public class SparkWarcStreamingReader {
 		// Output: (Text key, Text val)
 		// key: protocol + "::" + hostname + "::" + urlpath + "::" + parameters + "::" + date
 		// val: raw html string
-
-		JavaPairDStream<String, String> htmlRecords = warcStreamingRecords.mapToPair(new PairFunction<Tuple2<LongWritable, WarcRecord>, String, String>() {
-			private static final long serialVersionUID = 413002664707012422L;
-
-			public Tuple2<String,String> call(Tuple2<LongWritable, WarcRecord> val)  {
-
-				//LongWritable key = val._1;  
-				WarcRecord value = val._2;
-
-				HttpHeader httpHeader = value.getHttpHeader();
-
-				if (httpHeader == null) {
-					// WarcRecord failed to parse httpHeader
-				} else {
-					if (httpHeader.contentType != null && value.header.warcTargetUriUri != null && httpHeader.contentType.contains("text/html")) {
-
-						String host = value.header.warcTargetUriStr;
-
-						if (host != null){	
-							
-							String keytext = host;
-							String htmlraw = "";
-							String encoding = "UTF-8";
-
-							try {
-								URL url = new URL(host);
-								String protocol = url.getProtocol();
-								String hostname = url.getHost();
-								String urlpath = url.getPath();
-								String param = url.getQuery();
-								
-								keytext = protocol + "::" + hostname + "::" + urlpath + "::" + param;
-										
-							} catch (MalformedURLException | NullPointerException e1) {
-								e1.printStackTrace();
-							}
-							
-							try {
-								String date = httpHeader.getHeader("date").value;
-								
-								String pattern_in = "EEE, d MMM yyyy HH:mm:ss z";
-								String pattern_out = "yyyymmddhhmmss";
-								SimpleDateFormat format = new SimpleDateFormat(pattern_in,Locale.ENGLISH);
-								SimpleDateFormat formatout = new SimpleDateFormat(pattern_out,Locale.ENGLISH);
-								String newdate = formatout.format(format.parse(date));							
-
-								keytext += "::" + newdate;
-								
-							} catch ( ParseException | NullPointerException e1) {
-								e1.printStackTrace();
-							}
-							
-
-							//Try to read record encoding
-							String contentType = httpHeader.getProtocolContentType();
-							contentType = contentType.replaceAll("\"","");
-							contentType = contentType.replaceAll("\'","");
-							
-							if (contentType != null && contentType.contains("charset")) {
-								String[] blocks = contentType.split(";");
-								
-								for(String block : blocks){
-									if(block.contains("charset")){
-										if(block.contains("=")){
-											int idx = block.indexOf('=');
-											encoding = block.substring(idx+1, block.length());										
-										}
-										else if(block.contains(":")){
-											int idx = block.indexOf(':');
-											encoding = block.substring(idx+1, block.length());										
-										}
-									}
-								}
-							}
-
-							try {
-								htmlraw = IOUtils.toString(httpHeader.getPayloadInputStream(), encoding);
-								htmlraw = htmlraw.replaceAll("\r"," ");
-								htmlraw = htmlraw.replaceAll("\t"," ");
-								htmlraw = htmlraw.replaceAll("\\s{2,}"," ");
-								htmlraw = htmlraw.replaceAll("\n","");
-								
-								return new Tuple2<>(keytext, htmlraw);
-								
-							} catch (IOException e) {
-								e.printStackTrace();
-							} catch (IllegalCharsetNameException e) {
-								e.printStackTrace();
-							} catch (UnsupportedCharsetException e) {
-								e.printStackTrace();
-							}
-						}
-					}
-				}
-				
-				//Return empty result, which should be filtered out later. 
-				return new Tuple2<>("","");
-			}
-		});
+		JavaPairDStream<String, String> htmlRecords = warcStreamingRecords.mapToPair(new WarcToHtmlFunction());
 
 		//Filter out records with empty keys. 
 		JavaPairDStream<String, String> filtered = htmlRecords.filter(new Function<Tuple2<String, String>,Boolean>(){
@@ -182,7 +84,6 @@ public class SparkWarcStreamingReader {
 
 					JavaPairRDD<Text, Text> rdd2 = rdd.mapToPair(new PairFunction<Tuple2<String, String>,Text, Text>(){
 						private static final long serialVersionUID = -7458294460957741075L;
-
 						@Override
 						public Tuple2<Text, Text> call(Tuple2<String, String> t) throws Exception {
 							return new Tuple2<>(new Text(t._1()),new Text(t._2()));
@@ -191,12 +92,12 @@ public class SparkWarcStreamingReader {
 					Configuration hadoopconf = new Configuration();
 					
 					//Define a Custom Key & Value separator, so it would not conflict with any actual string in the extracted HTML
-					hadoopconf.set("mapreduce.output.textoutputformat.separator", "*_*_*_*_*_*_*_*_");
+					//hadoopconf.set("mapreduce.output.textoutputformat.separator", "*_*_*_*_*_*_*_*_");
 					hadoopconf.set("mapreduce.output.fileoutputformat.compress", "true");
 					hadoopconf.set("mapreduce.output.fileoutputformat.compress.codec","org.apache.hadoop.io.compress.GzipCodec");
 					hadoopconf.set("mapreduce.output.fileoutputformat.compress.type","RECORD");
 					
-					rdd2.saveAsNewAPIHadoopFile(outputfolder+System.currentTimeMillis(), Text.class, Text.class, TextOutputFormat.class, hadoopconf);
+					rdd2.saveAsNewAPIHadoopFile(outputfolder+"/out_"+System.currentTimeMillis(), Text.class, Text.class, TextOutputFormat.class, hadoopconf);
 				}
 				return null;
 			}
