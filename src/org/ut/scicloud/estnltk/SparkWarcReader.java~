@@ -1,18 +1,27 @@
 package org.ut.scicloud.estnltk;
 
 import scala.Tuple2;
+import java.io.IOException;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.nio.charset.IllegalCharsetNameException;
+import java.nio.charset.UnsupportedCharsetException;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Locale;
+
+import org.apache.commons.io.IOUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
-import org.apache.hadoop.mapreduce.lib.output.SequenceFileOutputFormat;
+import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.Function;
 import org.apache.spark.api.java.function.PairFunction;
+import org.jwat.common.HttpHeader;
 import org.jwat.warc.WarcRecord;
-import org.ut.scicloud.estnltk.WarcToHtmlFunction;
-
 import nl.surfsara.warcutils.WarcInputFormat;
 
 public class SparkWarcReader {
@@ -30,9 +39,9 @@ public class SparkWarcReader {
 			hadoopconf.set("mapreduce.output.textoutputformat.separator", args[2]);
 		}
 		
-		//hadoopconf.set("mapreduce.output.fileoutputformat.compress", "true");
-		//hadoopconf.set("mapreduce.output.fileoutputformat.compress.codec","org.apache.hadoop.io.compress.GzipCodec");
-		//hadoopconf.set("mapreduce.output.fileoutputformat.compress.type","RECORD");
+		hadoopconf.set("mapreduce.output.fileoutputformat.compress", "true");
+		hadoopconf.set("mapreduce.output.fileoutputformat.compress.codec","org.apache.hadoop.io.compress.GzipCodec");
+		hadoopconf.set("mapreduce.output.fileoutputformat.compress.type","RECORD");
 		
 		SparkConf conf = new SparkConf();
 		
@@ -63,7 +72,7 @@ public class SparkWarcReader {
 		});
 		
 		//cast String values into Text writable type for Hadoop API. 
-		JavaPairRDD<Text, Text> output = filtered.mapToPair(new PairFunction<Tuple2<String,String>, Text, Text>(){
+		filtered.mapToPair(new PairFunction<Tuple2<String,String>, Text, Text>(){
 			private static final long serialVersionUID = -788808740444185356L;
 
 			@Override
@@ -73,7 +82,7 @@ public class SparkWarcReader {
 		});
 		
 		//Store results in (compressed) TextOutput format
-		output.saveAsNewAPIHadoopFile(args[1], Text.class, Text.class, SequenceFileOutputFormat.class, hadoopconf);
+		filtered.saveAsNewAPIHadoopFile(args[1], Text.class, Text.class, TextOutputFormat.class, hadoopconf);
 		
 		ctx.close();
 	}
